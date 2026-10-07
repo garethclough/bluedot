@@ -9,15 +9,17 @@ int stop = 1500;
 
 int velocidad_derecha = 1750;
 int velocidad_izquierda = 1250;
+int millisecondsToTurn180 = 450; 
 
 int tiempo = 650;
 int currentX = 0;
 bool entradaCompleta = false;
 String entradaSerial = "";
+int currentAngle = 0;
 
 void setup()
 {
-  servo1.attach(pin, pulsoMinimo, pulsoMaximo);//, pulsoMinimo, pulsoMaximo);
+  servo1.attach(pin, pulsoMinimo, pulsoMaximo);
   servo1.write(stop);
   Serial.begin(9600);
 }
@@ -39,14 +41,34 @@ void serialEvent() {
 }
  // From 0 to 360
 void moveToAngle(int ang) {
+  if (currentAngle == ang) {
+    return;
+  }
 
+  int changeAngle = ang - currentAngle;
+  float changeTimePerDegree = millisecondsToTurn180 / 180.0;
+  float changeTime = 0;
+  if (changeAngle > 0) {
+    changeTime = (float)changeAngle * changeTimePerDegree;
+    servo1.write(velocidad_derecha);
+    delay(lround(changeTime));
+    servo1.write(stop);
+  }   
+  currentAngle = ang;
 }
 
 void loop()
 {
-  servo1.write(stop);
-  
+  moveToAngle(180);
+  delay(2000);
 
+  /*
+  servo1.write(180);
+//  moveToAngle(180);
+  delay(pulsoMaximo);
+  servo1.write(stop);
+  delay(8000);
+*/
   /*
     servo1.write(0);
     delay(1000);
