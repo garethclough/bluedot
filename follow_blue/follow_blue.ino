@@ -33,8 +33,9 @@ void serialEvent() {
 
     if (inChar == '\n') {
       entradaCompleta = true;
-      Serial.println("Recibido: " + entradaSerial);
-      servo1.write(entradaSerial.toInt());
+      int intAngle = entradaSerial.toInt();
+//      Serial.println("Recibido: " + intAngle);
+      moveToAngle(intAngle);
       entradaSerial = "";
     }
   }
@@ -42,6 +43,8 @@ void serialEvent() {
  // From 0 to 360
 void moveToAngle(int ang) {
   if (currentAngle == ang) {
+    Serial.print("DONE:");
+    Serial.println(currentAngle);
     return;
   }
 
@@ -53,14 +56,19 @@ void moveToAngle(int ang) {
     servo1.write(velocidad_derecha);
     delay(lround(changeTime));
     servo1.write(stop);
+  } else {
+    changeTime = (float)-changeAngle * changeTimePerDegree;
+    servo1.write(velocidad_izquierda);
+    delay(lround(changeTime));
+    servo1.write(stop);
   }   
   currentAngle = ang;
+  Serial.print("DONE:");
+  Serial.println(currentAngle);
 }
 
 void loop()
 {
-  moveToAngle(180);
-  delay(2000);
 
   /*
   servo1.write(180);
