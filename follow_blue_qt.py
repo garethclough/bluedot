@@ -598,9 +598,12 @@ class FollowColourWindow(QWidget):
         if self.waitingForArduino:
             while self.ser.in_waiting:
                 response = self.ser.readline().decode().strip()
-                if response.startswith("DONE:"):
-                    print("Arduino finished:", response)
+                if response.startswith("RECEIVED:"):
+                    print("Arduino received:", response)
                     self.waitingForArduino = False
+                if response.startswith("DONE:"):
+                    print("Arduino moved to:", response)
+
 
         # Dont wait indefinitely for arduino response
         currentTime = time.perf_counter()

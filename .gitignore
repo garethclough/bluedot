@@ -1,0 +1,5 @@
+# PyInstaller build files
+/build/
+
+# Keep the dist folder and its contents
+!/dist/
