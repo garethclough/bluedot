@@ -2,6 +2,7 @@ import sys
 import cv2
 import numpy as np
 import serial
+import time
 
 from PyQt6.QtWidgets import (
     QApplication,
@@ -26,7 +27,8 @@ from PyQt6.QtGui import QImage, QPixmap
 
 COM = "COM8"
 BAUD = 9600
-PIXELS_PER_DEGREE = 2
+MAX_PIXELS_PER_DEGREE = 5
+MAX_WAIT_FOR_ARDUINO = 1.0
 
 
 # ---------------------------------------------------------
@@ -50,6 +52,7 @@ class FollowColourWindow(QWidget):
         # Prevent sending another command while Arduino is moving
         self.waitingForArduino = False
         self.nextAngle = False
+        self.arduinoTime = False
 
         # -------------------------------------------------
         # Camera selection
@@ -98,6 +101,9 @@ class FollowColourWindow(QWidget):
         self.vMin = self.createSlider(0, 255, 20)
         self.vMax = self.createSlider(0, 255, 255)
 
+        # Options
+        self.pixelsPerTenthOfDegree = 2
+
         # -------------------------------------------------
         # Information labels
         # -------------------------------------------------
@@ -116,6 +122,18 @@ class FollowColourWindow(QWidget):
 
         self.startButton.clicked.connect(self.startCamera)
         self.stopButton.clicked.connect(self.stopCamera)
+
+        # -------------------------------------------------
+        # Timer
+        # -------------------------------------------------
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.updateFrame)
+
+        self.arduinoTimer = QTimer()
+        self.arduinoTimer.timeout.connect(self.updateArduino)
+        self.arduinoTimer.start(200) 
+
 
         # -------------------------------------------------
         # Layout
@@ -175,8 +193,39 @@ class FollowColourWindow(QWidget):
         hsvLayout.addWidget(self.vMax, 5, 1)
 
         hsvGroup.setLayout(hsvLayout)
-
         mainLayout.addWidget(hsvGroup)
+
+        # Settings
+        self.pixelsPerDegreeSlider = self.createSlider(1,100,20)
+        self.pixelsPerDegreeLabel = QLabel(str(float(self.pixelsPerDegreeSlider.value()) / 10.0) + " pixels/degree")
+        self.pixelsPerDegreeSlider.valueChanged.connect(
+            lambda value: self.pixelsPerDegreeLabel.setText(
+                f"{value / 10:.1f} pixels/degree"
+            )
+        )
+
+        settingsGroup = QGroupBox("Settings")
+        settingsLayout = QGridLayout()
+        settingsLayout.addWidget(QLabel("Pixels per degree"), 0, 0)
+        settingsLayout.addWidget(self.pixelsPerDegreeSlider, 0, 1)
+        settingsLayout.addWidget(self.pixelsPerDegreeLabel, 0, 2)
+        self.arduinoTimerSlider = self.createSlider(1,1000,200)
+        self.arduinoTimerSliderLabel = QLabel(str(self.arduinoTimerSlider.value()) + ' ms')
+        self.arduinoTimerSlider.valueChanged.connect(
+            self.updateArduinoTimer
+        )
+
+
+        settingsLayout.addWidget(QLabel("Arduino Message Fequency"), 1, 0)
+        settingsLayout.addWidget(self.arduinoTimerSlider, 1, 1)
+        settingsLayout.addWidget(self.arduinoTimerSliderLabel, 1, 2)
+
+
+        settingsGroup.setLayout(settingsLayout)
+        mainLayout.addWidget(settingsGroup)
+
+
+        
 
         # Information
         infoLayout = QHBoxLayout()
@@ -190,13 +239,13 @@ class FollowColourWindow(QWidget):
 
         self.setLayout(mainLayout)
 
-        # -------------------------------------------------
-        # Timer
-        # -------------------------------------------------
+    # -----------------------------------------------------
+    # Callback from slider
+    # -----------------------------------------------------
+    def updateArduinoTimer(self, value):
+        self.arduinoTimerSliderLabel.setText(f"{value} ms")
+        self.arduinoTimer.setInterval(value)
 
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.updateFrame)
-        self.timer.timeout.connect(self.updateArduino)
 
     # -----------------------------------------------------
     # Create slider
@@ -462,8 +511,9 @@ class FollowColourWindow(QWidget):
 
                 dx = x - centreX
 
+                # Slider values are tenths of a degree
                 angle = round(
-                    float(dx) / PIXELS_PER_DEGREE
+                    float(dx) / (float(self.pixelsPerDegreeSlider.value()) / 10.0)
                 )
 
                 # -------------------------------------------------
@@ -552,13 +602,18 @@ class FollowColourWindow(QWidget):
                     print("Arduino finished:", response)
                     self.waitingForArduino = False
 
+        # Dont wait indefinitely for arduino response
+        currentTime = time.perf_counter()
+        if self.waitingForArduino and self.arduinoTime is not False and currentTime - self.arduinoTime > MAX_WAIT_FOR_ARDUINO:
+            self.waitingForArduino = False
+            print("No response from arduino")
+
 
         if not self.waitingForArduino and self.nextAngle is not False:
             angle = self.nextAngle
-            self.ser.write(
-                f"{angle}\n".encode()
-            )
-
+            print("Angle: "+ str(angle))
+            self.ser.write((str(angle) + "\n").encode());
+            self.arduinoTime = time.perf_counter()
             self.waitingForArduino = True
 
             self.arduinoLabel.setText(
